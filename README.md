@@ -118,6 +118,13 @@ curl http://localhost:11434/api/tags
 # Pull LLaVA (vision + language model)
 ollama pull llava
 ```
+   **Note:** To use a different model, update the default model name in `src/lib/ollama.ts`:
+   ```typescript
+   export async function sendStreamingChatMessage(
+     messages: OllamaMessage[],
+     onChunk: (content: string) => void,
+     model: string = 'gemma3:4b'  // Change this to your preferred model
+```
 
 ## 📝 Usage Tips
 
