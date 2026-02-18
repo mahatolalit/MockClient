@@ -1,7 +1,8 @@
-import { Client, Account, Databases, Storage } from 'appwrite';
+import { Client, Account, Databases, Storage, ID, Query } from 'appwrite';
+import type { PersonaSettings } from './prompts';
 
 const client = new Client()
-  .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1')
+  .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
   .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID || '');
 
 export const account = new Account(client);
@@ -9,20 +10,42 @@ export const databases = new Databases(client);
 export const storage = new Storage(client);
 
 export const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID || '';
-export const COLLECTION_ID = import.meta.env.VITE_APPWRITE_COLLECTION_ID || '';
+/** Collection storing one document per chat session */
+export const SESSIONS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_SESSIONS_COLLECTION_ID || '';
+/** Collection storing one document per message */
+export const MESSAGES_COLLECTION_ID = import.meta.env.VITE_APPWRITE_MESSAGES_COLLECTION_ID || '';
 export const BUCKET_ID = import.meta.env.VITE_APPWRITE_BUCKET_ID || '';
 
-// Auth helpers
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+/** Silently kill any active session so a fresh one can be created. */
+const clearActiveSession = async () => {
+  try {
+    await account.deleteSession('current');
+  } catch {
+    // no active session — that's fine
+  }
+};
+
 export const createAccount = async (email: string, password: string, name: string) => {
-  return await account.create('unique()', email, password, name);
+  await clearActiveSession();
+  await account.create(ID.unique(), email, password, name);
+  return await account.createEmailPasswordSession(email, password);
 };
 
 export const login = async (email: string, password: string) => {
+  await clearActiveSession();
   return await account.createEmailPasswordSession(email, password);
 };
 
 export const logout = async () => {
-  return await account.deleteSession('current');
+  try {
+    await account.deleteSession('current');
+  } catch {
+    // session may already be expired — treat as success
+  }
 };
 
 export const getCurrentUser = async () => {
@@ -33,40 +56,196 @@ export const getCurrentUser = async () => {
   }
 };
 
-// Database helpers
-export const saveChatHistory = async (userId: string, messages: unknown[], personaSettings: unknown) => {
+export const updateName = async (name: string) => {
+  return await account.updateName(name);
+};
+
+export const sendPasswordRecovery = async (email: string, redirectUrl: string) => {
+  return await account.createRecovery(email, redirectUrl);
+};
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface StoredSession {
+  $id: string;
+  userId: string;
+  title: string;
+  personaSettings: string; // JSON
+  messageCount: number;
+  lastMessageAt: string;   // ISO
+  createdAt: string;       // ISO
+}
+
+export interface StoredMessage {
+  $id: string;
+  sessionId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  storageFileId: string | null; // Appwrite storage file ID for attached image
+  timestamp: string;            // ISO
+}
+
+// ---------------------------------------------------------------------------
+// Sessions
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a new session document. Called once when user sends the first message.
+ */
+export const createSession = async (
+  userId: string,
+  title: string,
+  personaSettings: PersonaSettings,
+): Promise<StoredSession> => {
+  const now = new Date().toISOString();
   return await databases.createDocument(
     DATABASE_ID,
-    COLLECTION_ID,
-    'unique()',
+    SESSIONS_COLLECTION_ID,
+    ID.unique(),
     {
       userId,
-      messages: JSON.stringify(messages),
+      title: title.slice(0, 120),
       personaSettings: JSON.stringify(personaSettings),
-      createdAt: new Date().toISOString(),
-    }
-  );
+      messageCount: 0,
+      lastMessageAt: now,
+      createdAt: now,
+    },
+  ) as unknown as StoredSession;
 };
 
-export const getChatHistory = async () => {
-  return await databases.listDocuments(
+/**
+ * Increment messageCount and update lastMessageAt on a session.
+ * Avoids re-writing the whole document on every message.
+ */
+export const touchSession = async (sessionId: string, newCount: number) => {
+  return await databases.updateDocument(
     DATABASE_ID,
-    COLLECTION_ID,
-    [
-      // Add query filters if needed
-    ]
+    SESSIONS_COLLECTION_ID,
+    sessionId,
+    {
+      messageCount: newCount,
+      lastMessageAt: new Date().toISOString(),
+    },
   );
 };
 
-// Storage helpers
-export const uploadScreenshot = async (file: File) => {
-  return await storage.createFile(BUCKET_ID, 'unique()', file);
+/**
+ * List sessions for a user, newest first, capped at `limit`.
+ */
+export const listSessions = async (userId: string, limit = 30): Promise<StoredSession[]> => {
+  const res = await databases.listDocuments(
+    DATABASE_ID,
+    SESSIONS_COLLECTION_ID,
+    [
+      Query.equal('userId', userId),
+      Query.orderDesc('lastMessageAt'),
+      Query.limit(limit),
+    ],
+  );
+  return res.documents as unknown as StoredSession[];
 };
 
-export const getFileUrl = (fileId: string) => {
-  return storage.getFileView(BUCKET_ID, fileId);
+/**
+ * Delete a session and all its messages + images.
+ * Runs message deletion in batches to avoid hammering the DB.
+ */
+export const deleteSession = async (sessionId: string): Promise<void> => {
+  // Fetch all message docs in batches (no Query.select — not supported in all SDK versions)
+  let cursor: string | undefined;
+  const fileIds: string[] = [];
+  const msgIds: string[] = [];
+
+  do {
+    const queries: string[] = [
+      Query.equal('sessionId', sessionId),
+      Query.limit(100),
+    ];
+    if (cursor) queries.push(Query.cursorAfter(cursor));
+
+    const res = await databases.listDocuments(DATABASE_ID, MESSAGES_COLLECTION_ID, queries);
+    for (const doc of res.documents) {
+      msgIds.push(doc.$id);
+      if (doc['storageFileId']) fileIds.push(doc['storageFileId'] as string);
+    }
+    cursor = res.documents.length === 100 ? res.documents[res.documents.length - 1].$id : undefined;
+  } while (cursor);
+
+  // Delete messages (swallow individual failures so one bad doc doesn't block the rest)
+  await Promise.all(msgIds.map((id) =>
+    databases.deleteDocument(DATABASE_ID, MESSAGES_COLLECTION_ID, id).catch(console.warn),
+  ));
+  // Delete storage files (best-effort)
+  await Promise.all(fileIds.map((id) =>
+    storage.deleteFile(BUCKET_ID, id).catch(() => null),
+  ));
+  // Delete session doc
+  await databases.deleteDocument(DATABASE_ID, SESSIONS_COLLECTION_ID, sessionId);
 };
 
-export const deleteFile = async (fileId: string) => {
-  return await storage.deleteFile(BUCKET_ID, fileId);
+// ---------------------------------------------------------------------------
+// Messages
+// ---------------------------------------------------------------------------
+
+/**
+ * Append a single message to a session. Optionally uploads an image file first.
+ * Returns the stored message document.
+ */
+export const appendMessage = async (
+  sessionId: string,
+  role: 'user' | 'assistant',
+  content: string,
+  imageFile?: File | null,
+): Promise<StoredMessage> => {
+  let storageFileId: string | null = null;
+
+  if (imageFile) {
+    const uploaded = await storage.createFile(BUCKET_ID, ID.unique(), imageFile);
+    storageFileId = uploaded.$id;
+  }
+
+  return await databases.createDocument(
+    DATABASE_ID,
+    MESSAGES_COLLECTION_ID,
+    ID.unique(),
+    {
+      sessionId,
+      role,
+      content,
+      storageFileId,
+      timestamp: new Date().toISOString(),
+    },
+  ) as unknown as StoredMessage;
+};
+
+/**
+ * Fetch messages for a session with cursor-based pagination.
+ * Returns messages ordered oldest-first, up to `limit` starting after `cursor`.
+ */
+export const fetchMessages = async (
+  sessionId: string,
+  limit = 50,
+  cursor?: string,
+): Promise<StoredMessage[]> => {
+  const queries = [
+    Query.equal('sessionId', sessionId),
+    Query.orderAsc('timestamp'),
+    Query.limit(limit),
+  ];
+  if (cursor) queries.push(Query.cursorAfter(cursor));
+
+  const res = await databases.listDocuments(DATABASE_ID, MESSAGES_COLLECTION_ID, queries);
+  return res.documents as unknown as StoredMessage[];
+};
+
+// ---------------------------------------------------------------------------
+// Storage
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a direct view URL for a stored image file.
+ */
+export const getImageUrl = (fileId: string): string => {
+  return storage.getFileView(BUCKET_ID, fileId).toString();
 };
