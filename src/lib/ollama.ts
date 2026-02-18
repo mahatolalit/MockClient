@@ -1,4 +1,4 @@
-const OLLAMA_ENDPOINT = import.meta.env.VITE_OLLAMA_ENDPOINT || 'http://localhost:11434';
+const OLLAMA_ENDPOINT = import.meta.env.VITE_OLLAMA_ENDPOINT;
 
 export interface OllamaMessage {
   role: 'user' | 'assistant' | 'system';
