@@ -1,165 +1,130 @@
-# MockClient: The AI Freelance Simulator
+﻿# MockClient — AI Freelance Client Simulator
 
-> **Master the art of dealing with clients before you ever sign a contract.**
+> Practice client conversations before you ever sign a contract.
 
-![Tech Stack](https://img.shields.io/badge/stack-Vite%20%7C%20React%20%7C%20Ollama%20%7C%20Appwrite-blueviolet)
+![Stack](https://img.shields.io/badge/stack-Vite%20%7C%20React%2019%20%7C%20TypeScript%20%7C%20Ollama%20%7C%20Appwrite-blueviolet)
 
-## 🚀 Quick Start
+MockClient simulates a freelance client powered by a local LLM. Configure a persona, receive a project brief, submit screenshots of your work, and get realistic (sometimes frustrating) feedback — without any real client involved.
 
-### Prerequisites
+---
 
-1. **Node.js** (v18 or higher)
-2. **Ollama** with a vision model installed
-3. **Appwrite** instance (optional - for saving chat history)
+## Features
 
-### Installation
+- **Configurable personas** — mix clarity (Full / Moderate / Low) and behavior (Accepting / Skeptical / Picky) to simulate different client types
+- **Vision-aware AI** — attach screenshots and the model reviews your actual work
+- **Persistent chat history** — all sessions and messages are saved per-user in Appwrite
+- **Image storage** — uploaded screenshots are stored in Appwrite Storage and shown inline
+- **Full auth** — email/password registration and login with cookie-based sessions
+- **Drag-and-drop uploads** — window-level drag overlay (ChatGPT-style), compact paperclip icon in the input bar
 
-1. Install dependencies:
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Vite + React 19 + TypeScript |
+| Styling | Tailwind CSS v4 |
+| AI | Ollama (local, streaming, vision) |
+| Auth / DB / Storage | Appwrite |
+
+---
+
+## Quick Start
+
+See [SETUP.md](SETUP.md) for the full walkthrough.
+
 ```bash
 npm install
-```
-
-2. Set up Ollama:
-```bash
-# Install Ollama from https://ollama.com/
-# Pull a vision-capable model
-ollama pull llava
-```
-
-3. Configure environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your Appwrite credentials (optional)
-```
-
-4. Start the development server:
-```bash
+cp .env.example .env   # fill in your values
+npm run setup:appwrite # create Appwrite collections + bucket automatically
 npm run dev
 ```
 
-5. Open [http://localhost:5173](http://localhost:5173) in your browser
+---
 
-## 📖 How It Works
-
-1. **Configure Your Client** - Choose clarity level, behavior type, and your role
-2. **Receive a Project Brief** - Get a realistic project description based on settings
-3. **Build Your Project** - Work on your localhost as you normally would
-4. **Submit Screenshots** - Drag & drop screenshots of your work
-5. **Get Feedback** - The AI "client" reviews your work using vision capabilities
-
-## 🎯 Features
-
-### Client Personas
-
-**Clarity Levels:**
-- **Full** - Detailed specs with color codes and tech requirements
-- **Moderate** - General goals, you ask for specifics
-- **Low** - Vague requests like "make it pop"
-
-**Behavior Types:**
-- **Accepting** - Easy-going, minimal revisions
-- **Skeptical** - Questions your choices, wants proof
-- **Picky** - Obsesses over pixel-perfect details
-
-### Supported Roles
-- Frontend Developer
-- Backend Developer
-- UI Designer
-
-## 🛠️ Technology Stack
-
-- **Frontend:** Vite + React + TypeScript
-- **Styling:** Tailwind CSS
-- **AI:** Ollama (Local LLM with vision)
-- **Backend:** Appwrite (Optional)
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 src/
-├── components/
-│   ├── chat/
-│   │   ├── ChatInterface.tsx
-│   │   └── MessageBubble.tsx
-│   ├── features/
-│   │   ├── PersonaSelector.tsx
-│   │   └── ImageUploader.tsx
-│   └── ui/               # Reusable UI components
-├── lib/
-│   ├── appwrite.ts      # Appwrite integration
-│   ├── ollama.ts        # Ollama API service
-│   ├── prompts.ts       # AI prompt engineering
-│   └── utils.ts         # Utility functions
-└── App.tsx
+ components/
+    auth/
+       LoginPage.tsx
+       RegisterPage.tsx
+       ProtectedRoute.tsx
+    chat/
+       ChatInterface.tsx   # main chat UI, streaming + persistence
+       HistorySidebar.tsx  # session list, delete, navigation
+       MessageBubble.tsx   # renders a single message with optional image
+    features/
+       PersonaSelector.tsx # home screen — pick persona + start session
+       ImageUploader.tsx   # paperclip icon + drag-and-drop overlay
+    ui/                     # Button, Card, Input, Textarea
+ context/
+    AuthContext.tsx         # React context for auth state
+ lib/
+    appwrite.ts             # all Appwrite SDK calls (auth, DB, storage)
+    chatService.ts          # SessionWriter class + message hydration
+    ollama.ts               # streaming Ollama API client
+    prompts.ts              # system prompt + project brief generation
+    utils.ts
+scripts/
+ setup-appwrite.mjs          # one-time Appwrite setup script
 ```
 
-## 🔧 Configuration
+---
 
-### Environment Variables
+## Environment Variables
 
 ```env
 VITE_APPWRITE_ENDPOINT=https://cloud.appwrite.io/v1
 VITE_APPWRITE_PROJECT_ID=your-project-id
 VITE_APPWRITE_DATABASE_ID=your-database-id
-VITE_APPWRITE_COLLECTION_ID=your-collection-id
-VITE_APPWRITE_BUCKET_ID=your-bucket-id
+VITE_APPWRITE_SESSIONS_COLLECTION_ID=sessions
+VITE_APPWRITE_MESSAGES_COLLECTION_ID=messages
+VITE_APPWRITE_BUCKET_ID=chat-images
 VITE_OLLAMA_ENDPOINT=http://localhost:11434
+
+# Server-only — used by `npm run setup:appwrite`, never sent to the browser
+APPWRITE_API_KEY=your-appwrite-api-key
 ```
-
-### Ollama Setup
-
-Ensure Ollama is running with a vision model:
-
-```bash
-# Check if Ollama is running
-curl http://localhost:11434/api/tags
-
-# If not installed, download from https://ollama.com/
-# Pull LLaVA (vision + language model)
-ollama pull llava
-```
-   **Note:** To use a different model, update the default model name in `src/lib/ollama.ts`:
-   ```typescript
-   export async function sendStreamingChatMessage(
-     messages: OllamaMessage[],
-     onChunk: (content: string) => void,
-     model: string = 'gemma3:4b'  // Change this to your preferred model
-```
-
-## 📝 Usage Tips
-
-1. **Start Simple** - Begin with "Full" clarity and "Accepting" behavior
-2. **Practice Communication** - Ask clarifying questions with vague clients
-3. **Submit Quality Screenshots** - Clear, full-page captures work best
-4. **Iterate** - The AI can detect errors and crashes in your screenshots
-
-## ⚠️ Troubleshooting
-
-### "Couldn't connect to AI"
-- Ensure Ollama is running: `ollama serve`
-- Check if LLaVA is installed: `ollama list`
-- Verify endpoint in `.env`: `VITE_OLLAMA_ENDPOINT=http://localhost:11434`
-
-### TypeScript Errors
-- Run `npm install` again
-- Check that `@types/node` is installed
-- Verify path aliases in `tsconfig.app.json`
-
-### Image Upload Not Working
-- Check browser console for errors
-- Ensure file is an image format (PNG, JPG, etc.)
-- Try smaller file sizes (< 5MB recommended)
-
-## 🎓 Learning Outcomes
-
-This simulator helps you practice:
-- **Client communication skills**
-- **Requirement gathering**
-- **Managing expectations**
-- **Handling vague feedback**
-- **Iterative development**
-- **Professional presentation**
 
 ---
 
-**Built with ❤️ for developers learning to freelance**
+## Ollama Model
+
+The app defaults to `gemma3:4b`. To change it, edit the `model` default in `src/lib/ollama.ts`:
+
+```ts
+export async function sendStreamingChatMessage(
+  messages: OllamaMessage[],
+  onChunk: (content: string) => void,
+  model: string = 'gemma3:4b',   //  change this
+)
+```
+
+For image support (screenshots) use a vision model like `llava` or `gemma3`.
+
+---
+
+## Available Scripts
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Start development server |
+| `npm run build` | Type-check + production build |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run ESLint |
+| `npm run setup:appwrite` | Create Appwrite collections, indexes, and bucket |
+
+---
+
+## Troubleshooting
+
+**"Couldn't connect to the AI"** — Ollama is not running. Run `ollama serve` and make sure a model is installed (`ollama list`).
+
+**Messages not saving / 401 errors** — Run `npm run setup:appwrite` again to patch collection permissions. Make sure `APPWRITE_API_KEY` is set in `.env`.
+
+**TypeScript errors in `main.tsx`** — Check that `tsconfig.app.json` has `"types": ["vite/client", "react", "react-dom"]`.
+
+**Port in use** — `npm run dev -- --port 3000`
