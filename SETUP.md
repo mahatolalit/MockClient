@@ -1,208 +1,229 @@
-# Setup Guide for MockClient
+﻿# MockClient — Setup Guide
 
-This guide will help you get MockClient up and running on your local machine.
+This guide walks you through getting MockClient fully running from scratch.
+
+---
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
+| Requirement | Version | Notes |
+|---|---|---|
+| Node.js | v18+ | [nodejs.org](https://nodejs.org/) |
+| Ollama | latest | [ollama.com](https://ollama.com/) |
+| Appwrite | Cloud or self-hosted | [appwrite.io](https://appwrite.io/) |
 
-1. **Node.js** (v18 or higher) - [Download](https://nodejs.org/)
-2. **Git** - [Download](https://git-scm.com/)
-3. **Ollama** - [Download](https://ollama.com/)
+---
 
-## Step 1: Install Dependencies
+## Step 1 — Install Dependencies
 
 ```bash
 npm install
 ```
 
-This will install all required packages including:
-- React & TypeScript
-- Vite (build tool)
-- Tailwind CSS
-- Appwrite SDK
-- React Markdown
+---
 
-## Step 2: Set Up Ollama (Required)
+## Step 2 — Set Up Ollama
 
-Ollama is required for the AI client functionality. It runs locally on your machine.
+Ollama runs the AI locally. It is **required**.
 
-### Installation
+1. Download and install from [https://ollama.com/](https://ollama.com/)
+2. Pull a vision-capable model:
 
-1. Download and install Ollama from [https://ollama.com/](https://ollama.com/)
-2. After installation, verify it's running:
-
-**Windows:**
-```powershell
-curl http://localhost:11434/api/tags
+```bash
+ollama pull gemma3       # recommended — vision + text
+# or
+ollama pull llava        # alternative vision model
 ```
 
-**Linux/Mac:**
+3. Verify Ollama is running:
+
 ```bash
 curl http://localhost:11434/api/tags
 ```
 
-### Pull a Vision Model
+You should see a JSON list of installed models.
 
-The app requires a vision-capable model to analyze screenshots:
+> The default model in `src/lib/ollama.ts` is `gemma3:4b`. Change the `model` default in `sendStreamingChatMessage` if you use a different model name.
 
-```bash
-ollama pull llava
-```
+---
 
-This will download the LLaVA model (~4GB). Once complete, verify it's available:
+## Step 3 — Set Up Appwrite
 
-```bash
-ollama list
-```
+Appwrite handles **authentication**, **chat history**, and **image storage**. It is **required**.
 
-You should see `llava` in the list.
+### 3a. Create an Appwrite project
 
-## Step 3: Configure Environment Variables (Optional)
+1. Sign up at [cloud.appwrite.io](https://cloud.appwrite.io/) (free tier works)
+2. Create a new project — note the **Project ID**
+3. Create a new **Database** — note the **Database ID**
+4. Go to **Settings  API Keys  Create API Key**
+   - Grant these scopes: `databases.read`, `databases.write`, `collections.read`, `collections.write`, `attributes.read`, `attributes.write`, `indexes.read`, `indexes.write`, `buckets.read`, `buckets.write`, `files.read`, `files.write`
+   - Note the **API Key**
 
-Appwrite is optional and only needed if you want to save chat history.
-
-1. Copy the example environment file:
+### 3b. Configure environment variables
 
 ```bash
 cp .env.example .env
 ```
 
-2. Edit `.env` with your Appwrite credentials:
+Edit `.env`:
 
 ```env
 VITE_APPWRITE_ENDPOINT=https://cloud.appwrite.io/v1
-VITE_APPWRITE_PROJECT_ID=your-project-id-here
-VITE_APPWRITE_DATABASE_ID=your-database-id-here
-VITE_APPWRITE_COLLECTION_ID=your-collection-id-here
-VITE_APPWRITE_BUCKET_ID=your-bucket-id-here
+VITE_APPWRITE_PROJECT_ID=your-project-id
+VITE_APPWRITE_DATABASE_ID=your-database-id
+VITE_APPWRITE_SESSIONS_COLLECTION_ID=sessions
+VITE_APPWRITE_MESSAGES_COLLECTION_ID=messages
+VITE_APPWRITE_BUCKET_ID=chat-images
 VITE_OLLAMA_ENDPOINT=http://localhost:11434
+
+# Server-only key — never committed, never sent to the browser
+APPWRITE_API_KEY=your-appwrite-api-key
 ```
 
-**Note:** The Ollama endpoint should always be `http://localhost:11434` unless you've configured it differently.
+> The collection/bucket ID values (`sessions`, `messages`, `chat-images`) are the IDs that will be created for you in the next step. You can use any string you like.
 
-## Step 4: Run the Development Server
+### 3c. Run the automated setup script
+
+```bash
+npm run setup:appwrite
+```
+
+This script will:
+- Create the `sessions` collection with all required attributes and indexes
+- Create the `messages` collection with all required attributes and indexes
+- Create the `chat-images` storage bucket
+- Patch permissions on existing collections if they already exist
+
+It is **safe to run multiple times** — it skips anything that already exists and patches what needs updating.
+
+Expected output:
+```
+Appwrite Setup — MockClient
+
+ sessions collection
+   Created collection "sessions"
+ sessions  attributes
+   Created string attribute "userId" ...
+  ...
+ messages collection
+   Created collection "messages"
+  ...
+ storage bucket
+   Created bucket "chat-images"
+
+Setup complete.
+```
+
+### 3d. Add your domain to Appwrite's allowed platforms
+
+In the Appwrite console: **Project  Settings  Platforms  Add Platform  Web**
+
+- For local dev: add `http://localhost:5173`
+- For production: add your deployed domain
+
+---
+
+## Step 4 — Start the Dev Server
 
 ```bash
 npm run dev
 ```
 
-The app will be available at [http://localhost:5173](http://localhost:5173)
+Open [http://localhost:5173](http://localhost:5173).
 
-## Step 5: Test the Application
+You will be shown a **login screen**. Register a new account, then log in.
 
-1. Open [http://localhost:5173](http://localhost:5173) in your browser
-2. Select a client persona (clarity level and behavior type)
-3. Choose your role (Frontend, Backend, or UI Designer)
-4. Click "Start Session"
-5. You should receive a project brief from the AI client
-6. Build your project locally, take screenshots, and upload them for feedback
+---
+
+## Step 5 — Start a Chat
+
+1. On the home screen, choose a **clarity level**, **behavior**, and **your role**
+2. Click **Generate Brief** — the AI client will introduce itself with a project description
+3. Reply as you would with a real client
+4. Attach screenshots by clicking the paperclip icon or dragging a file anywhere onto the window
+5. All messages are automatically saved and appear in the **Chat History** sidebar
+
+---
+
+## Appwrite Collections Reference
+
+The setup script creates these automatically. Listed here for reference.
+
+### `sessions` collection
+
+| Attribute | Type | Size | Required | Index |
+|---|---|---|---|---|
+| `userId` | String | 36 | Yes | Key |
+| `title` | String | 120 | Yes | — |
+| `personaSettings` | String | 1000 | Yes | — |
+| `messageCount` | Integer | — | Yes | — |
+| `lastMessageAt` | String | 36 | Yes | Key |
+| `createdAt` | String | 36 | Yes | — |
+
+### `messages` collection
+
+| Attribute | Type | Size | Required | Index |
+|---|---|---|---|---|
+| `sessionId` | String | 36 | Yes | Key |
+| `role` | String | 10 | Yes | — |
+| `content` | String | 65535 | Yes | — |
+| `storageFileId` | String | 36 | No | — |
+| `timestamp` | String | 36 | Yes | Key |
+
+---
 
 ## Troubleshooting
 
-### "Couldn't connect to AI" Error
+### "Couldn't connect to the AI"
 
-This means the app can't reach Ollama. Try:
-
-1. Ensure Ollama is running:
-   ```bash
-   ollama serve
-   ```
-
-2. Check if the model is installed:
-   ```bash
-   ollama list
-   ```
-
-3. Test the Ollama API:
-   ```bash
-   curl http://localhost:11434/api/tags
-   ```
-
-4. Verify your `.env` file has the correct endpoint:
-   ```env
-   VITE_OLLAMA_ENDPOINT=http://localhost:11434
-   ```
-
-### Build Errors
-
-If you encounter TypeScript or build errors:
+Ollama is not running or the model is missing.
 
 ```bash
-# Clean install
-rm -rf node_modules package-lock.json
-npm install
-
-# Rebuild
-npm run build
+ollama serve          # start Ollama
+ollama list           # check installed models
+ollama pull gemma3    # install if missing
 ```
 
-### Port Already in Use
+### Messages not saving / 401 Unauthorized
 
-If port 5173 is already in use:
+Collection permissions were not set correctly.
+
+```bash
+npm run setup:appwrite   # re-run — it will patch permissions
+```
+
+Make sure `APPWRITE_API_KEY` is present in `.env` and has the required scopes.
+
+### Sessions show up but messages don't load
+
+Check that `VITE_APPWRITE_MESSAGES_COLLECTION_ID` matches the actual collection ID in your Appwrite dashboard.
+
+### Build errors / TypeScript errors
+
+```bash
+npx tsc -p tsconfig.app.json --noEmit
+```
+
+Check that `tsconfig.app.json` contains:
+```json
+"types": ["vite/client", "react", "react-dom"]
+```
+
+### Port already in use
 
 ```bash
 npm run dev -- --port 3000
 ```
 
-This will run the app on port 3000 instead.
+---
 
-### Slow AI Responses
-
-LLaVA is a large model. Depending on your hardware:
-- First response may take 30-60 seconds
-- Subsequent responses should be faster (10-20 seconds)
-- Consider using a GPU for faster inference
-
-### Image Upload Not Working
-
-Ensure:
-- File is a valid image format (PNG, JPG, JPEG, WebP)
-- File size is reasonable (< 10MB recommended)
-- Browser has permission to access files
-
-## Next Steps
-
-Once everything is working:
-
-1. **Start Simple** - Try "Full" clarity with "Accepting" behavior
-2. **Practice Communication** - Graduate to "Moderate" and "Low" clarity
-3. **Challenge Yourself** - Try "Picky" or "Skeptical" clients
-4. **Experiment** - Try different roles (Frontend, Backend, UI Designer)
-
-## Optional: Set Up Appwrite
-
-If you want to save chat history:
-
-1. Sign up at [appwrite.io](https://appwrite.io/)
-2. Create a new project
-3. Create a database and collection with these attributes:
-   - `userId` (string)
-   - `messages` (string)
-   - `personaSettings` (string)
-   - `createdAt` (datetime)
-4. Create a storage bucket for screenshots
-5. Update your `.env` file with the IDs
-
-## Building for Production
+## Production Build
 
 ```bash
 npm run build
 ```
 
-The built files will be in the `dist/` folder. You can deploy this folder to any static hosting service (Vercel, Netlify, GitHub Pages, etc.).
+Output goes to `dist/`. Deploy to any static host (Vercel, Netlify, Cloudflare Pages).
 
-**Important:** Ollama must be running on the machine accessing the app, as it runs locally.
-
-## Getting Help
-
-If you encounter issues:
-
-1. Check the browser console for errors (F12)
-2. Check the Ollama logs
-3. Verify all prerequisites are installed
-4. Review this setup guide again
-
----
-
-Happy freelancing! 🚀
+**Important:** Ollama must be running on the same machine as the browser, since it runs locally on `localhost:11434`. For a hosted deployment you would need to expose Ollama or swap to a hosted model API.

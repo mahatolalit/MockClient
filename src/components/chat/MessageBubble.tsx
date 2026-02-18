@@ -4,9 +4,10 @@ interface MessageBubbleProps {
   role: 'user' | 'assistant';
   content: string;
   timestamp?: Date;
+  imageUrl?: string;
 }
 
-export function MessageBubble({ role, content, timestamp }: MessageBubbleProps) {
+export function MessageBubble({ role, content, timestamp, imageUrl }: MessageBubbleProps) {
   const isUser = role === 'user';
 
   return (
@@ -18,6 +19,14 @@ export function MessageBubble({ role, content, timestamp }: MessageBubbleProps) 
             : 'bg-gray-100 text-gray-900 border border-gray-200'
         }`}
       >
+        {/* Image preview inside bubble */}
+        {imageUrl && (
+          <img
+            src={imageUrl}
+            alt="Attached screenshot"
+            className="max-h-48 w-auto rounded-lg mb-2 border border-blue-400/30"
+          />
+        )}
         <div className="prose prose-sm max-w-none">
           <ReactMarkdown
             components={{
