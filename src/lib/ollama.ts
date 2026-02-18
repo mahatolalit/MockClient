@@ -109,7 +109,6 @@ export async function sendStreamingChatMessage(
       }
     }
   } catch (error) {
-    console.error('Streaming error:', error);
     throw error;
   }
 }

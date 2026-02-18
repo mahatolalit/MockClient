@@ -160,11 +160,8 @@ export function ChatInterface({
           onSessionCreated();
         }
       } catch (saveError) {
-        // Persistence failed — log it but keep the streamed response visible
-        console.warn('Failed to save messages to Appwrite:', saveError);
-        if (saveError instanceof Error) {
-          console.error('Save error detail:', saveError.message, (saveError as unknown as Record<string, unknown>)?.response ?? '');
-        }
+        // Persistence failed — keep the streamed response visible
+        console.warn('Failed to persist messages:', saveError instanceof Error ? saveError.message : saveError);
       }
     } catch (error) {
       console.error('Streaming error:', error);

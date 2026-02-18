@@ -61,7 +61,6 @@ export function HistorySidebar({
       setSessions((prev) => prev.filter((s) => s.$id !== sessionId));
       if (currentSessionId === sessionId) onGoHome();
     } catch (err) {
-      console.error('Failed to delete session:', err);
       alert(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setDeletingId(null);
