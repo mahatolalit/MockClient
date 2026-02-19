@@ -1,4 +1,5 @@
 const OLLAMA_ENDPOINT = import.meta.env.VITE_OLLAMA_ENDPOINT;
+const OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL;
 
 export interface OllamaMessage {
   role: 'user' | 'assistant' | 'system';
@@ -21,7 +22,7 @@ export interface OllamaResponse {
  */
 export async function sendChatMessage(
   messages: OllamaMessage[],
-  model: string = 'gemma3:4b',
+  model: string = OLLAMA_MODEL,
   stream: boolean = false
 ): Promise<OllamaResponse> {
   const response = await fetch(`${OLLAMA_ENDPOINT}/api/chat`, {
@@ -49,7 +50,7 @@ export async function sendChatMessage(
 export async function sendStreamingChatMessage(
   messages: OllamaMessage[],
   onChunk: (content: string) => void,
-  model: string = 'gemma3:4b'
+  model: string = OLLAMA_MODEL
 ): Promise<void> {
   try {
     const response = await fetch(`${OLLAMA_ENDPOINT}/api/chat`, {
