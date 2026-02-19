@@ -268,7 +268,21 @@ export const getImageUrl = (fileId: string): string => {
 export const downloadImageAsObjectUrl = async (fileId: string): Promise<string | undefined> => {
   try {
     const url = storage.getFileView(BUCKET_ID, fileId).toString();
-    const res = await fetch(url, { credentials: 'include' });
+
+    // Appwrite requires the project header on every request.
+    // In cross-origin / localhost scenarios the SDK stores the session in
+    // localStorage under 'cookieFallback' and sends it via X-Fallback-Cookies
+    // — a plain fetch with only credentials:include misses this, causing 401s
+    // after a page refresh when the cookie is not present in the jar.
+    const headers: Record<string, string> = {
+      'X-Appwrite-Project': import.meta.env.VITE_APPWRITE_PROJECT_ID || '',
+    };
+    try {
+      const fallback = localStorage.getItem('cookieFallback');
+      if (fallback) headers['X-Fallback-Cookies'] = fallback;
+    } catch { /* localStorage unavailable — proceed without fallback */ }
+
+    const res = await fetch(url, { credentials: 'include', headers });
     if (!res.ok) return undefined;
     const blob = await res.blob();
     return URL.createObjectURL(blob);
