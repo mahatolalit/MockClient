@@ -11,11 +11,46 @@ MockClient simulates a freelance client powered by a local LLM. Configure a pers
 ## Features
 
 - **Configurable personas** — mix clarity (Full / Moderate / Low) and behavior (Accepting / Skeptical / Picky) to simulate different client types
+  ---
+  
+  <img width="718" height="501" alt="Screenshot 2026-02-19 084110" src="https://github.com/user-attachments/assets/f37cb1ec-5e5a-46df-8fe2-b9a9da2b2d6d" />
+
+  ---
+  
 - **Vision-aware AI** — attach screenshots and the model reviews your actual work
+  ---
+  
+  <img width="1318" height="644" alt="Screenshot 2026-02-19 083721" src="https://github.com/user-attachments/assets/8855a1a0-35f3-4f91-a4cf-1df7687204ff" />
+  
+  ---
+  
 - **Persistent chat history** — all sessions and messages are saved per-user in Appwrite
+  ---
+
+  <img width="251" height="244" alt="image" src="https://github.com/user-attachments/assets/5a102e83-d7a4-41d4-9f28-e9db99537219" />
+
+  ---
+  
 - **Image storage** — uploaded screenshots are stored in Appwrite Storage and shown inline
+  ---
+
+  <img width="1058" height="396" alt="Screenshot 2026-02-19 091037" src="https://github.com/user-attachments/assets/e5598460-e97d-4e98-afa4-7a293fe86ffe" />
+
+  ---
+  
 - **Full auth** — email/password registration and login with cookie-based sessions
+  ---
+
+  <img width="446" height="547" alt="image" src="https://github.com/user-attachments/assets/150bcd50-f0d2-4925-9a20-812ef5f309c4" /> <img width="509" height="562" alt="Screenshot 2026-02-19 091528" src="https://github.com/user-attachments/assets/608966c3-0e45-42b3-840f-5e402e4f6824" />
+
+
+
+  ---
 - **Drag-and-drop uploads** — window-level drag overlay (ChatGPT-style), compact paperclip icon in the input bar
+  ---
+
+  <img width="1320" height="650" alt="Screenshot 2026-02-19 091441" src="https://github.com/user-attachments/assets/bf7663ec-7a42-444c-9536-b687a6630192" />
+
 
 ---
 
