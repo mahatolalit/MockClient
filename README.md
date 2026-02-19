@@ -119,26 +119,11 @@ VITE_APPWRITE_SESSIONS_COLLECTION_ID=sessions
 VITE_APPWRITE_MESSAGES_COLLECTION_ID=messages
 VITE_APPWRITE_BUCKET_ID=chat-images
 VITE_OLLAMA_ENDPOINT=http://localhost:11434
+VITE_OLLAMA_MODEL=gemma3:4b   # any Ollama model; use a vision model for screenshot support
 
 # Server-only — used by `npm run setup:appwrite`, never sent to the browser
 APPWRITE_API_KEY=your-appwrite-api-key
 ```
-
----
-
-## Ollama Model
-
-The app defaults to `gemma3:4b`. To change it, edit the `model` default in `src/lib/ollama.ts`:
-
-```ts
-export async function sendStreamingChatMessage(
-  messages: OllamaMessage[],
-  onChunk: (content: string) => void,
-  model: string = 'gemma3:4b',   //  change this
-)
-```
-
-For image support (screenshots) use a vision model like `llava` or `gemma3`.
 
 ---
 
