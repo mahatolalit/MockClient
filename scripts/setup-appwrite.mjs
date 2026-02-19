@@ -142,15 +142,24 @@ async function ensureIndex(colId, indexKey, type, attrs) {
 }
 
 async function ensureBucket(bucketId, bucketName) {
+  const perms = [
+    Permission.read(Role.users()),
+    Permission.create(Role.users()),
+    Permission.update(Role.users()),
+    Permission.delete(Role.users()),
+  ];
+
+  let exists = false;
   try {
     await storage.getBucket(bucketId);
-    skip(`Bucket "${bucketName}"`);
-  } catch {
-    await storage.createBucket(bucketId, bucketName, [
-      Permission.read(Role.users()),
-      Permission.create(Role.users()),
-      Permission.delete(Role.users()),
-    ]);
+    exists = true;
+  } catch { /* doesn't exist yet */ }
+
+  if (exists) {
+    await storage.updateBucket(bucketId, bucketName, perms);
+    ok(`Patched permissions on bucket "${bucketName}"`);
+  } else {
+    await storage.createBucket(bucketId, bucketName, perms);
     ok(`Created bucket "${bucketName}"`);
   }
 }

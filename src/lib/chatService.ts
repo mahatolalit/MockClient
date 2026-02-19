@@ -11,7 +11,7 @@ import {
   touchSession,
   appendMessage,
   fetchMessages,
-  getImageUrl,
+  downloadImageAsObjectUrl,
   type StoredMessage,
 } from './appwrite';
 import type { PersonaSettings } from './prompts';
@@ -36,13 +36,14 @@ export function hydrateMessage(msg: StoredMessage): ChatMessage {
     content: msg.content,
     timestamp: new Date(msg.timestamp),
     storageFileId: msg.storageFileId ?? undefined,
-    imageUrl: msg.storageFileId ? getImageUrl(msg.storageFileId) : undefined,
+    // imageUrl is resolved to a blob URL separately in loadSessionMessages
   };
 }
 
 /**
  * Load all messages for a session (handles pagination automatically).
  * Stops after 500 messages to prevent UI from locking up on very old sessions.
+ * Images are fetched via the SDK auth session and resolved to blob URLs.
  */
 export async function loadSessionMessages(sessionId: string): Promise<ChatMessage[]> {
   const all: StoredMessage[] = [];
@@ -55,7 +56,18 @@ export async function loadSessionMessages(sessionId: string): Promise<ChatMessag
     cursor = batch.length === 50 ? batch[batch.length - 1].$id : undefined;
   } while (cursor && all.length < MAX_MESSAGES);
 
-  return all.map(hydrateMessage);
+  const messages = all.map(hydrateMessage);
+
+  // Resolve storage images → blob URLs in parallel so <img> tags work without auth cookies
+  await Promise.all(
+    messages
+      .filter((m) => m.storageFileId)
+      .map(async (m) => {
+        m.imageUrl = await downloadImageAsObjectUrl(m.storageFileId!);
+      }),
+  );
+
+  return messages;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,7 +114,7 @@ export class SessionWriter {
    */
   async saveInitialBrief(content: string): Promise<void> {
     const sessionId = await this.ensureSession();
-    await appendMessage(sessionId, 'assistant', content, null);
+    await appendMessage(sessionId, 'assistant', content, null, this.userId);
     this.messageCount++;
     touchSession(sessionId, this.messageCount).catch(console.warn);
   }
@@ -118,14 +130,14 @@ export class SessionWriter {
     imageFile?: File | null,
   ): Promise<{ storageFileId: string | null; imageUrl: string | undefined }> {
     const sessionId = await this.ensureSession();
-    const stored = await appendMessage(sessionId, role, content, imageFile);
+    const stored = await appendMessage(sessionId, role, content, imageFile, this.userId);
     this.messageCount++;
     // Fire-and-forget touch — we don't await to avoid blocking the UI
     touchSession(sessionId, this.messageCount).catch(console.warn);
 
     return {
       storageFileId: stored.storageFileId,
-      imageUrl: stored.storageFileId ? getImageUrl(stored.storageFileId) : undefined,
+      imageUrl: stored.storageFileId ? await downloadImageAsObjectUrl(stored.storageFileId) : undefined,
     };
   }
 

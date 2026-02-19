@@ -141,18 +141,17 @@ export function ChatInterface({
         await writer.save('assistant', assistantContent);
 
         if (savedUser.storageFileId) {
+          // Only update storageFileId — keep the existing blob URL for display.
+          // The blob URL works without auth cookies; the Appwrite storage URL does not
+          // work reliably in plain <img> tags due to cross-origin cookie restrictions.
           setMessages((prev) =>
             prev.map((msg) =>
               msg.id === userMessage.id
-                ? {
-                    ...msg,
-                    imageUrl: savedUser.imageUrl,
-                    storageFileId: savedUser.storageFileId ?? undefined,
-                  }
+                ? { ...msg, storageFileId: savedUser.storageFileId ?? undefined }
                 : msg,
             ),
           );
-          if (blobUrl) URL.revokeObjectURL(blobUrl);
+          // Do NOT revoke blobUrl here — it's still being used by the <img> tag.
         }
 
         if (!sessionNotifiedRef.current && onSessionCreated) {
@@ -161,9 +160,10 @@ export function ChatInterface({
         }
       } catch (saveError) {
         // Persistence failed — log it but keep the streamed response visible
-        console.warn('Failed to save messages to Appwrite:', saveError);
+        console.error('Failed to save messages to Appwrite:', saveError);
         if (saveError instanceof Error) {
-          console.error('Save error detail:', saveError.message, (saveError as unknown as Record<string, unknown>)?.response ?? '');
+          const appwriteErr = saveError as unknown as Record<string, unknown>;
+          console.error('Save error detail:', saveError.message, appwriteErr?.response ?? appwriteErr?.code ?? '');
         }
       }
     } catch (error) {

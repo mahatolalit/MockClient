@@ -1,4 +1,4 @@
-import { Client, Account, Databases, Storage, ID, Query } from 'appwrite';
+import { Client, Account, Databases, Storage, ID, Query, Permission, Role } from 'appwrite';
 import type { PersonaSettings } from './prompts';
 
 const client = new Client()
@@ -197,11 +197,19 @@ export const appendMessage = async (
   role: 'user' | 'assistant',
   content: string,
   imageFile?: File | null,
+  userId?: string,
 ): Promise<StoredMessage> => {
   let storageFileId: string | null = null;
 
   if (imageFile) {
-    const uploaded = await storage.createFile(BUCKET_ID, ID.unique(), imageFile);
+    const perms = userId
+      ? [
+          Permission.read(Role.user(userId)),
+          Permission.update(Role.user(userId)),
+          Permission.delete(Role.user(userId)),
+        ]
+      : undefined;
+    const uploaded = await storage.createFile(BUCKET_ID, ID.unique(), imageFile, perms);
     storageFileId = uploaded.$id;
   }
 
@@ -245,7 +253,26 @@ export const fetchMessages = async (
 
 /**
  * Returns a direct view URL for a stored image file.
+ * NOTE: This URL requires the browser to have an active Appwrite session cookie.
+ * Use downloadImageAsObjectUrl() for reliable display in <img> tags across origins.
  */
 export const getImageUrl = (fileId: string): string => {
   return storage.getFileView(BUCKET_ID, fileId).toString();
+};
+
+/**
+ * Fetches an image file via the SDK auth session and returns a local blob URL.
+ * This works regardless of CORS / cookie restrictions on <img> tags.
+ * The caller is responsible for revoking the returned URL when done.
+ */
+export const downloadImageAsObjectUrl = async (fileId: string): Promise<string | undefined> => {
+  try {
+    const url = storage.getFileView(BUCKET_ID, fileId).toString();
+    const res = await fetch(url, { credentials: 'include' });
+    if (!res.ok) return undefined;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch {
+    return undefined;
+  }
 };
